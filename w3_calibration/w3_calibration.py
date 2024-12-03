@@ -50,29 +50,37 @@ print("\nDistortion Coefficients:\n", dist_coeffs)
 np.savez('calibration_data.npz', camera_matrix=camera_matrix, dist_coeffs=dist_coeffs, rvecs=rvecs, tvecs=tvecs)
 
 # Step 7: Use the calibration results to undistort an image
-img = cv2.imread('./calibration_images/calibration_image_02.jpg')  # Replace with an image to undistort
-# img = cv2.cvtColor()
-h, w = img.shape[:2]
-new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(camera_matrix, dist_coeffs, (w, h), 1, (w, h))
+# img = cv2.imread('./calibration_images/calibration_image_02.jpg')  # Replace with an image to undistort
 
-# Undistort the image
-undistorted_img = cv2.undistort(img, camera_matrix, dist_coeffs, None, new_camera_matrix)
+images = glob.glob('./calibration_images/*.jpg') 
+for fname in images:
+    img = cv2.imread(fname)
+
+    # img = cv2.cvtColor()
+    h, w = img.shape[:2]
+    new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(camera_matrix, dist_coeffs, (w, h), alpha=0.1, centerPrincipalPoint=True)
+    print("New Camera Matrix:\n", new_camera_matrix)
+
+    # Undistort the image
+    undistorted_img = cv2.undistort(img, camera_matrix, dist_coeffs, None, new_camera_matrix)
+
+    # Crop the image (optional, based on ROI)
+    x, y, w, h = roi
+    undistorted_img = undistorted_img[y:y+h, x:x+w]
 
 
-# Crop the image (optional, based on ROI)
-x, y, w, h = roi
-undistorted_img = undistorted_img[y:y+h, x:x+w]
+    mean_error = 0
+    for i in range(len(objpoints)):
+        imgpoints2, _ = cv2.projectPoints(objpoints[i], rvecs[i], tvecs[i], camera_matrix, dist_coeffs)
+        error = cv2.norm(imgpoints[i], imgpoints2, cv2.NORM_L2) / len(imgpoints2)
+        mean_error += error
 
-mean_error = 0
-for i in range(len(objpoints)):
-    imgpoints2, _ = cv2.projectPoints(objpoints[i], rvecs[i], tvecs[i], camera_matrix, dist_coeffs)
-    error = cv2.norm(imgpoints[i], imgpoints2, cv2.NORM_L2) / len(imgpoints2)
-    mean_error += error
+    print("total error for image {}".format(mean_error / len(objpoints)))
 
-print("total error: {}".format(mean_error / len(objpoints)))
+    # Display the original and undistorted images
+    cv2.imshow('Undistorted Image', undistorted_img)
+    cv2.waitKey(500)
+    output_fname = fname.replace('.jpg', '_distorted.jpg')  # Adjust extension if necessary
+    cv2.imwrite(output_fname, undistorted_img)
 
-# Display the original and undistorted images
-cv2.imshow('Original Image', img)
-cv2.imshow('Undistorted Image', undistorted_img)
-cv2.waitKey(0)
 cv2.destroyAllWindows()
